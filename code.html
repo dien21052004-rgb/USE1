@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT Dashboard - 3-Phase Monitoring</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mqtt@4.3.7/dist/mqtt.min.js"></script>
+    <!-- Thêm script cho EraWidget nếu cần (thay path bằng đường dẫn thực tế) -->
+    <script src="path/to/EraWidget.js"></script>  <!-- Nếu EraWidget là file riêng, thêm dòng này -->
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .chart-container { width: 100%; height: 300px; margin-bottom: 20px; }
+        h1 { text-align: center; }
+        .phase { display: inline-block; width: 30%; margin: 1%; }
+        .control { text-align: center; margin-top: 20px; }
+        button { padding: 10px 20px; font-size: 16px; margin: 5px; }
+        .light-status { 
+            width: 50px; 
+            height: 50px; 
+            border-radius: 50%; 
+            display: inline-block; 
+            margin-left: 10px; 
+            border: 2px solid #000; 
+        }
+        .on { background-color: green; }
+        .off { background-color: black; }
+    </style>
+</head>
+<body>
+    <h1>IoT Dashboard Giám Sát 3 Pha</h1>
+    <div class="phase">
+        <h2>Pha A</h2>
+        <div class="chart-container">
+            <canvas id="chartA"></canvas>
+        </div>
+    </div>
+    <div class="phase">
+        <h2>Pha B</h2>
+        <div class="chart-container">
+            <canvas id="chartB"></canvas>
+        </div>
+    </div>
+    <div class="phase">
+        <h2>Pha C</h2>
+        <div class="chart-container">
+            <canvas id="chartC"></canvas>
+        </div>
+    </div>
+
+    <!-- Nút điều khiển đèn và trạng thái -->
+    <div class="control">
+        <h2>Điều Khiển Đèn</h2>
+        <button id="lightOn">Bật Đèn</button>
+        <button id="lightOff">Tắt Đèn</button>
+        <div class="light-status" id="lightIndicator"></div> <!-- Hình tròn hiển thị trạng thái -->
+        <span id="statusText">Trạng Thái: Không Biết</span>
+    </div>
+
+    <script>
+        // Cấu hình MQTT (thay đổi broker IP nếu cần)
+        const broker = 'ws://your_mqtt_broker_ip:8080/mqtt';  // Sử dụng WebSocket MQTT
+        const client = mqtt.connect(broker);
+
+        // Dữ liệu cho biểu đồ (lưu 50 điểm gần nhất)
+        const dataA = { voltage: [], current: [] };
+        const dataB = { voltage: [], current: [] };
+        const dataC = { voltage: [], current: [] };
+
+        // Tạo biểu đồ cho mỗi pha (giữ nguyên như trước)
+        const ctxA = document.getElementById('chartA').getContext('2d');
+        const chartA = new Chart(ctxA, {
+            type: 'line',
+            data: {
+                labels: Array.from({length: 50}, (_, i) => i),
+                datasets: [
+                    { label: 'Điện Áp (V)', data: dataA.voltage, borderColor: 'blue', fill: false },
+                    { label: 'Dòng Điện (A)', data: dataA.current, borderColor: 'red', fill: false }
+                ]
+            },
+            options: { responsive: true, scales: { y: { beginAtZero: true } } }
+        });
+
+        const ctxB = document.getElementById('chartB').getContext('2d');
+        const chartB = new Chart(ctxB, {
+            type: 'line',
+            data: {
+                labels: Array.from({length: 50}, (_, i) => i),
+                datasets: [
+                    { label: 'Điện Áp (V)', data: dataB.voltage, borderColor: 'blue', fill: false },
+                    { label: 'Dòng Điện (A)', data: dataB.current, borderColor: 'red', fill: false }
+                ]
+            },
+            options: { responsive: true, scales: { y: { beginAtZero: true } } }
+        });
+
+        const ctxC = document.getElementById('chartC').getContext('2d');
+        const chartC = new Chart(ctxC, {
+            type: 'line',
+            data: {
+                labels: Array.from({length: 50}, (_, i) => i),
+                datasets: [
+                    { label: 'Điện Áp (V)', data: dataC.voltage, borderColor: 'blue', fill: false },
+                    { label: 'Dòng Điện (A)', data: dataC.current, borderColor: 'red', fill: false }
+                ]
+            },
+            options: { responsive: true, scales: { y: { beginAtZero: true } } }
+        });
+
+        // Kết nối MQTT và xử lý tin nhắn
+        client.on('connect', () => {
+            console.log('Kết nối MQTT thành công');
+            client.subscribe('iot/3phase/#');
+            client.subscribe('iot/light/status');  // Subscribe trạng thái đèn
+        });
+
+        client.on('message', (topic, message) => {
+            const value = message.toString();
+            console.log('Nhận tin nhắn MQTT:', topic, value);  // Log để debug
+            if (topic.includes('phaseA')) {
+                // Xử lý dữ liệu pha A (giữ nguyên)
+                const numValue = parseFloat(value);
+                if (topic.includes('voltage')) {
+                    dataA.voltage.push(numValue);
+                    if (dataA.voltage.length > 50) dataA.voltage.shift();
+                } else if (topic.includes('current')) {
+                    dataA.current.push(numValue);
+                    if (dataA.current.length > 50) dataA.current.shift();
+                }
+                chartA.update();
+            } else if (topic.includes('phaseB')) {
+                // Xử lý dữ liệu pha B (giữ nguyên)
+                const numValue = parseFloat(value);
+                if (topic.includes('voltage')) {
+                    dataB.voltage.push(numValue);
+                    if (dataB.voltage.length > 50) dataB.voltage.shift();
+                } else if (topic.includes('current')) {
+                    dataB.current.push(numValue);
+                    if (dataB.current.length > 50) dataB.current.shift();
+                }
+                chartB.update();
+            } else if (topic.includes('phaseC')) {
+                // Xử lý dữ liệu pha C (giữ nguyên)
+                const numValue = parseFloat(value);
+                if (topic.includes('voltage')) {
+                    dataC.voltage.push(numValue);
+                    if (dataC.voltage.length > 50) dataC.voltage.shift();
+                } else if (topic.includes('current')) {
+                    dataC.current.push(numValue);
+                    if (dataC.current.length > 50) dataC.current.shift();
+                }
+                chartC.update();
+            } else if (topic === 'iot/light/status') {
+                // Xử lý trạng thái đèn
+                console.log('Cập nhật trạng thái đèn:', value);  // Log để debug
+                const indicator = document.getElementById('lightIndicator');
+                const statusText = document.getElementById('statusText');
+                if (value === 'ON') {
+                    indicator.className = 'light-status on';
+                    statusText.textContent = 'Trạng Thái: Bật (Xanh)';
+                } else if (value === 'OFF') {
+                    indicator.className = 'light-status off';
+                    statusText.textContent = 'Trạng Thái: Tắt (Đen)';
+                }
+            }
+        });
+
+        client.on('error', (err) => {
+            console.error('Lỗi MQTT:', err);
+        });
+
+        // Thêm đoạn mã EraWidget (đã sửa lỗi cú pháp)
+        const eraWidget = new EraWidget();
+        let onLight = null;
+        let offLight = null;
+        eraWidget.init({
+            onConfiguration: (configuration) => {
+                onLight = configuration.actions[0];
+                offLight = configuration.actions[1];
+            },
+            onValues: (values) => {},
+        });
+
+        // Xử lý nút nhấn đèn (tích hợp với EraWidget nếu có, ngược lại dùng MQTT)
+        document.getElementById('lightOn').addEventListener('click', () => {
+            if (onLight) {
+                onLight();  // Gọi hành động từ EraWidget
+                console.log('Đã gọi onLight từ EraWidget');
+            } else {
+                client.publish('iot/light/control', 'ON');  // Fallback MQTT
+                console.log('Đã gửi lệnh bật đèn qua MQTT');
+            }
+            alert('Đã gửi lệnh BẬT ĐÈN! Kiểm tra console.');
+        });
+
+        document.getElementById('lightOff').addEventListener('click', () => {
+            if (offLight) {
+                offLight();  // Gọi hành động từ EraWidget
+                console.log('Đã gọi offLight từ EraWidget');
+            } else {
+                client.publish('iot/light/control', 'OFF');  // Fallback MQTT
+                console.log('Đã gửi lệnh tắt đèn qua MQTT');
+            }
+            alert('Đã gửi lệnh TẮT ĐÈN! Kiểm tra console.');
+        });
+    </script>
+</body>
+</html>
